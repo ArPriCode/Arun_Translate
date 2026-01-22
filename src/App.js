@@ -30,12 +30,18 @@ const App = () => {
     const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     try {
-      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${source}|${target}&de=arun.translate@gmail.com`;
+      // FULLY ENCODE the langpair (especially the '|' character) for mobile browsers
+      const langPair = encodeURIComponent(`${source}|${target}`);
+
+      // Adding Date.now() as a query param to bypass any caching layers (Vercel/ISP)
+      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text.trim())}&langpair=${langPair}&de=arun.translate@gmail.com&ts=${Date.now()}`;
 
       const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
         },
         signal: controller.signal
       });
@@ -47,14 +53,13 @@ const App = () => {
       if (data.responseData && data.responseData.translatedText) {
         setOutput(data.responseData.translatedText);
 
-        // If API status is not 200, it might be a partial match or suggestion
         if (data.responseStatus !== 200 && data.responseStatus !== "200") {
-          console.warn("MyMemory API returned non-200 status in body:", data);
+          console.warn("API Note:", data.responseDetails);
         }
       } else if (data.responseStatus === "403" || data.responseStatus === 403) {
-        setError("Rate limit reached. Please try again after 5 minutes.");
+        setError("Rate limit reached. Please wait 1 minute.");
       } else {
-        setError(data.responseDetails || "Translation failed. Try simpler words.");
+        setError(data.responseDetails || "Translation failed. Try again.");
       }
     } catch (err) {
       clearTimeout(timeoutId);
