@@ -30,36 +30,28 @@ const App = () => {
     const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     try {
-      // FULLY ENCODE the langpair (especially the '|' character) for mobile browsers
-      const langPair = encodeURIComponent(`${source}|${target}`);
-
-      // Adding Date.now() as a query param to bypass any caching layers (Vercel/ISP)
-      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text.trim())}&langpair=${langPair}&de=arun.translate@gmail.com&ts=${Date.now()}`;
+      // Using a much more reliable endpoint (Google Translate unofficial)
+      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${source}&tl=${target}&dt=t&q=${encodeURIComponent(text.trim())}`;
 
       const response = await fetch(url, {
         method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        },
         signal: controller.signal
       });
 
       clearTimeout(timeoutId);
 
+      if (!response.ok) {
+        throw new Error("Service unavailable.");
+      }
+
       const data = await response.json();
 
-      if (data.responseData && data.responseData.translatedText) {
-        setOutput(data.responseData.translatedText);
-
-        if (data.responseStatus !== 200 && data.responseStatus !== "200") {
-          console.warn("API Note:", data.responseDetails);
-        }
-      } else if (data.responseStatus === "403" || data.responseStatus === 403) {
-        setError("Rate limit reached. Please wait 1 minute.");
+      // Collect translation results
+      if (data && data[0]) {
+        const translatedText = data[0].map(item => item[0]).join("");
+        setOutput(translatedText);
       } else {
-        setError(data.responseDetails || "Translation failed. Try again.");
+        throw new Error("Translation failed.");
       }
     } catch (err) {
       clearTimeout(timeoutId);
