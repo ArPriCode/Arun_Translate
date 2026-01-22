@@ -27,10 +27,10 @@ const App = () => {
     setError('');
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 12000);
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     try {
-      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${source}|${target}&mt=1`;
+      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${source}|${target}&de=arun.translate@gmail.com`;
 
       const response = await fetch(url, {
         method: 'GET',
@@ -42,35 +42,29 @@ const App = () => {
 
       clearTimeout(timeoutId);
 
-      if (!response.ok) {
-        throw new Error(`API Error: ${response.status}`);
-      }
-
       const data = await response.json();
 
       if (data.responseData && data.responseData.translatedText) {
-        // Sometimes MyMemory returns the input text if translation fails or it's already in target language
-        // We ensure we don't display the input as output if they are identical (unless intended)
-        if (data.responseData.translatedText.toLowerCase().trim() === text.toLowerCase().trim() && text.length > 3) {
-          setError("Translation not found. Please try different words.");
-          setOutput('');
-        } else {
-          setOutput(data.responseData.translatedText);
+        setOutput(data.responseData.translatedText);
+
+        // If API status is not 200, it might be a partial match or suggestion
+        if (data.responseStatus !== 200 && data.responseStatus !== "200") {
+          console.warn("MyMemory API returned non-200 status in body:", data);
         }
       } else if (data.responseStatus === "403" || data.responseStatus === 403) {
-        setError("Rate limit reached. Please try after 2 minutes.");
+        setError("Rate limit reached. Please try again after 5 minutes.");
       } else {
-        setError(data.responseDetails || "Translation failed.");
+        setError(data.responseDetails || "Translation failed. Try simpler words.");
       }
     } catch (err) {
       clearTimeout(timeoutId);
       console.error("Translation error:", err);
 
       if (err.name === 'AbortError') {
-        setError("Request timed out. Slow internet connection.");
+        setError("Request timed out. Please try again.");
       } else {
         setError(err.message === 'Failed to fetch'
-          ? "Network error. Check your internet."
+          ? "Network error. Check your connection."
           : `Error: ${err.message}`);
       }
     } finally {
