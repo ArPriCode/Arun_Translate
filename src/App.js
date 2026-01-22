@@ -16,20 +16,48 @@ const App = () => {
     setLoading(true);
     setError('');
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
     try {
-      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${source}|${target}`;
-      const response = await fetch(url);
+      const encodedText = encodeURIComponent(text);
+      const encodedPair = encodeURIComponent(`${source}|${target}`);
+      const url = `https://api.mymemory.translated.net/get?q=${encodedText}&langpair=${encodedPair}`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`);
+      }
+
       const data = await response.json();
 
       if (data.responseData && data.responseData.translatedText) {
         setOutput(data.responseData.translatedText);
-      } else if (data.responseStatus === "403") {
-        setError("Rate limit reached. Please try again soon.");
+      } else if (data.responseStatus === "403" || data.responseStatus === 403) {
+        setError("Rate limit reached. Please try again in a few minutes.");
       } else {
-        setError(data.responseDetails || "Translation failed.");
+        setError(data.responseDetails || "Translation failed. Try shorter text.");
       }
     } catch (err) {
-      setError("Network error. Please check your connection.");
+      clearTimeout(timeoutId);
+      console.error("Translation error:", err);
+
+      if (err.name === 'AbortError') {
+        setError("Request timed out. Please check your internet connection.");
+      } else {
+        setError(err.message === 'Failed to fetch'
+          ? "Network error. Make sure you are connected to the internet."
+          : `Error: ${err.message}`);
+      }
     } finally {
       setLoading(false);
     }
