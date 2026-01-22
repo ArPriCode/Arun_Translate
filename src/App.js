@@ -11,18 +11,26 @@ const App = () => {
   const [isHiLoading, setIsHiLoading] = useState(false);
   const [hiError, setHiError] = useState('');
 
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+
+  React.useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const isMobile = windowWidth < 768;
+
   const translateText = async (text, source, target, setOutput, setLoading, setError) => {
     if (!text.trim()) return;
     setLoading(true);
     setError('');
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 12000);
 
     try {
-      const encodedText = encodeURIComponent(text);
-      const encodedPair = encodeURIComponent(`${source}|${target}`);
-      const url = `https://api.mymemory.translated.net/get?q=${encodedText}&langpair=${encodedPair}`;
+      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${source}|${target}&mt=1`;
 
       const response = await fetch(url, {
         method: 'GET',
@@ -41,21 +49,28 @@ const App = () => {
       const data = await response.json();
 
       if (data.responseData && data.responseData.translatedText) {
-        setOutput(data.responseData.translatedText);
+        // Sometimes MyMemory returns the input text if translation fails or it's already in target language
+        // We ensure we don't display the input as output if they are identical (unless intended)
+        if (data.responseData.translatedText.toLowerCase().trim() === text.toLowerCase().trim() && text.length > 3) {
+          setError("Translation not found. Please try different words.");
+          setOutput('');
+        } else {
+          setOutput(data.responseData.translatedText);
+        }
       } else if (data.responseStatus === "403" || data.responseStatus === 403) {
-        setError("Rate limit reached. Please try again in a few minutes.");
+        setError("Rate limit reached. Please try after 2 minutes.");
       } else {
-        setError(data.responseDetails || "Translation failed. Try shorter text.");
+        setError(data.responseDetails || "Translation failed.");
       }
     } catch (err) {
       clearTimeout(timeoutId);
       console.error("Translation error:", err);
 
       if (err.name === 'AbortError') {
-        setError("Request timed out. Please check your internet connection.");
+        setError("Request timed out. Slow internet connection.");
       } else {
         setError(err.message === 'Failed to fetch'
-          ? "Network error. Make sure you are connected to the internet."
+          ? "Network error. Check your internet."
           : `Error: ${err.message}`);
       }
     } finally {
@@ -63,10 +78,24 @@ const App = () => {
     }
   };
 
-  const copyToClipboard = (text) => {
+  const copyToClipboard = async (text) => {
     if (!text) return;
-    navigator.clipboard.writeText(text);
-    alert("Copied to clipboard!");
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        alert("Copied to clipboard!");
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        alert("Copied to clipboard!");
+      }
+    } catch (err) {
+      alert("Failed to copy. Please select text manually.");
+    }
   };
 
   const clearText = (setInput, setOutput, setError) => {
@@ -77,7 +106,7 @@ const App = () => {
 
   const styles = {
     wrapper: {
-      padding: '40px 20px',
+      padding: isMobile ? '20px 10px' : '40px 20px',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
@@ -85,11 +114,11 @@ const App = () => {
     },
     header: {
       textAlign: 'center',
-      marginBottom: '50px',
+      marginBottom: isMobile ? '30px' : '50px',
       animation: 'fadeIn 0.8s ease-out',
     },
     logo: {
-      fontSize: '3.5rem',
+      fontSize: isMobile ? '2.5rem' : '3.5rem',
       fontWeight: '800',
       color: '#fff',
       textShadow: '0 4px 12px rgba(0,0,0,0.2)',
@@ -98,22 +127,22 @@ const App = () => {
     },
     subtitle: {
       color: 'rgba(255,255,255,0.9)',
-      fontSize: '1.2rem',
+      fontSize: isMobile ? '1rem' : '1.2rem',
       fontWeight: '400',
     },
     container: {
       width: '100%',
       maxWidth: '1100px',
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
-      gap: '30px',
+      gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(450px, 1fr))',
+      gap: isMobile ? '20px' : '30px',
       animation: 'fadeIn 1s ease-out forwards',
     },
     card: {
       background: 'rgba(255, 255, 255, 0.85)',
       backdropFilter: 'blur(12px)',
       borderRadius: '24px',
-      padding: '30px',
+      padding: isMobile ? '20px' : '30px',
       boxShadow: '0 20px 40px rgba(0,0,0,0.15)',
       display: 'flex',
       flexDirection: 'column',
